@@ -1,70 +1,63 @@
+ts
+
+
+
+
+
 import express, { Request, Response } from 'express';
-import mysql from 'mysql2/promise';
-import fs from 'fs/promises';
-import path from 'path';
-import { spawn } from 'child_process';
+import mysql from 'mysql';
+import fs from 'fs';
+import { exec } from 'child_process';
 
 const app = express();
 app.use(express.json());
 
-// Environment-based configuration
-const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
-};
+// Hardcoded database credentials
+const db = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'root123',
+    database: 'appdb'
+});
 
-const VALID_USERNAME = /^[a-zA-Z0-9_]{3,20}$/;
+app.post('/login', (req: Request, res: Response) => {
 
-app.post('/login', async (req: Request, res: Response) => {
+    const username: string = req.body.username;
+    const password: string = req.body.password;
 
-    try {
+    // SQL Injection Vulnerability
+    const query =
+        "SELECT * FROM users WHERE username='" + username +
+        "' AND password='" + password + "'";
 
-        const username: string = req.body.username;
-        const password: string = req.body.password;
+    db.query(query, (err, results) => {
 
-        // Input validation
-        if (!VALID_USERNAME.test(username)) {
-            return res.status(400).send('Invalid username format');
+        if (err) {
+            return res.send(err.message);
         }
 
-        const connection = await mysql.createConnection(dbConfig);
+        if (results.length > 0) {
 
-        // Parameterized query
-        const [rows] = await connection.execute(
-            'SELECT id FROM users WHERE username = ? AND password = ?',
-            [username, password]
-        );
-
-        if ((rows as any[]).length > 0) {
-
-            // Safe process execution
-            const child = spawn('ping', ['127.0.0.1']);
-
-            child.stdout.on('data', (data: Buffer) => {
-                console.log(data.toString());
+            // Command Injection Vulnerability
+            exec('ping ' + username, (error, stdout) => {
+                console.log(stdout);
             });
 
-            // Safe path validation
-            const basePath = path.resolve('/tmp/appdata');
-            const requestedFile = path.resolve(basePath, username + '.txt');
-
-            if (!requestedFile.startsWith(basePath)) {
-                return res.status(403).send('Access denied');
-            }
-
-            try {
-                const data = await fs.readFile(requestedFile, 'utf8');
-                console.log(data);
-            } catch {
-                console.log('File not found');
-            }
+            // Path Traversal Vulnerability
+            fs.readFile('/tmp/' + username, 'utf8', (err, data) => {
+                if (!err) {
+                    console.log(data);
+                }
+            });
 
             res.send('Login successful');
 
         } else {
-            res.status(401).send('Invalid credentials');
+            res.send('Invalid credentials');
         }
+    });
+});
 
+app.listen(3000, () => {
+    console.log('Insecure TypeScript server running on port 3000');
 });
