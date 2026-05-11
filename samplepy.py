@@ -1,37 +1,26 @@
-from flask import Flask, request
 import sqlite3
-import subprocess
-import os
-from pathlib import Path
-import re
 
-app = Flask(__name__)
+conn = sqlite3.connect("shop.db")
+cursor = conn.cursor()
 
-# Environment-based configuration
-DB_PATH = os.getenv('DB_PATH', 'app.db')
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+product = input("Enter product name: ")
 
-VALID_USERNAME = re.compile(r'^[a-zA-Z0-9_]{3,20}$')
+# Vulnerable SQL query
+query = f"SELECT * FROM products WHERE name = '{product}'"
 
-@app.route('/login', methods=['POST'])
-def login():
+print("Executing query:")
+print(query)
 
-    username = request.form.get('username', '')
-    password = request.form.get('password', '')
+try:
+    results = cursor.execute(query).fetchall()
 
-    # Input validation
-    if not VALID_USERNAME.match(username):
-        return 'Invalid username format', 400
+    if results:
+        for row in results:
+            print(row)
+    else:
+        print("No products found")
 
-    try:
+except Exception as e:
+    print("Database error:", e)
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        # Parameterized query
-        cursor.execute(
-            'SELECT id FROM users WHERE username = ? AND password = ?',
-            (username, password)
-        )
-
-    app.run(debug=False)
+conn.close()
