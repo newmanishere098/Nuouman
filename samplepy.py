@@ -1,37 +1,41 @@
 from flask import Flask, request
 import sqlite3
-import subprocess
 import os
-from pathlib import Path
-import re
 
 app = Flask(__name__)
 
-# Environment-based configuration
-DB_PATH = os.getenv('DB_PATH', 'app.db')
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+DB = "users.db"
 
-VALID_USERNAME = re.compile(r'^[a-zA-Z0-9_]{3,20}$')
-
-@app.route('/login', methods=['POST'])
+@app.route("/login", methods=["POST"])
 def login():
+    username = request.form.get("username")
+    password = request.form.get("password")
 
-    username = request.form.get('username', '')
-    password = request.form.get('password', '')
+    conn = sqlite3.connect(DB)
+    cursor = conn.cursor()
 
-    # Input validation
-    if not VALID_USERNAME.match(username):
-        return 'Invalid username format', 400
+    # Vulnerable to SQL Injection
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
 
-    try:
+    result = cursor.execute(query).fetchone()
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+    conn.close()
 
-        # Parameterized query
-        cursor.execute(
-            'SELECT id FROM users WHERE username = ? AND password = ?',
-            (username, password)
-        )
+    if result:
+        return "Login successful"
+    else:
+        return "Invalid credentials"
 
-    app.run(debug=False)
+
+@app.route("/ping")
+def ping():
+    host = request.args.get("host")
+
+    # Vulnerable to Command Injection
+    output = os.popen(f"ping -c 1 {host}").read()
+
+    return f"<pre>{output}</pre>"
+
+
+@app.route("/read")
+def read_file():
