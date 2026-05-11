@@ -1,41 +1,26 @@
-from flask import Flask, request
 import sqlite3
-import os
 
-app = Flask(__name__)
+conn = sqlite3.connect("shop.db")
+cursor = conn.cursor()
 
-DB = "users.db"
+product = input("Enter product name: ")
 
-@app.route("/login", methods=["POST"])
-def login():
-    username = request.form.get("username")
-    password = request.form.get("password")
+# Vulnerable SQL query
+query = f"SELECT * FROM products WHERE name = '{product}'"
 
-    conn = sqlite3.connect(DB)
-    cursor = conn.cursor()
+print("Executing query:")
+print(query)
 
-    # Vulnerable to SQL Injection
-    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+try:
+    results = cursor.execute(query).fetchall()
 
-    result = cursor.execute(query).fetchone()
-
-    conn.close()
-
-    if result:
-        return "Login successful"
+    if results:
+        for row in results:
+            print(row)
     else:
-        return "Invalid credentials"
+        print("No products found")
 
+except Exception as e:
+    print("Database error:", e)
 
-@app.route("/ping")
-def ping():
-    host = request.args.get("host")
-
-    # Vulnerable to Command Injection
-    output = os.popen(f"ping -c 1 {host}").read()
-
-    return f"<pre>{output}</pre>"
-
-
-@app.route("/read")
-def read_file():
+conn.close()
